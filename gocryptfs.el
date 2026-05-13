@@ -65,6 +65,13 @@
               ((file-exists-p file)))
     (expand-file-name file)))
 
+(defun gocryptfs--clear-passphrase (passphrase)
+  "Clear PASSPHRASE string in place when possible."
+  (when (stringp passphrase)
+    (if (fboundp 'clear-string)
+        (clear-string passphrase)
+      (fillarray passphrase ?\0))))
+
 (defun gocryptfs-get-passphrase (vault)
   "Return passphrase for VAULT from the GPG encrypted password file.
 
@@ -110,16 +117,13 @@ ask for the password."
         (progn
           (with-current-buffer buffer (erase-buffer))
           (with-temp-buffer
+            (buffer-disable-undo)
             (let ((coding-system-for-write 'utf-8-unix))
               (insert passphrase "\n")
               (let ((exit-code (apply #'call-process-region (point-min) (point-max) gocryptfs-command nil buffer nil args)))
                 (unless (equal 0 exit-code)
                   (error "gocryptfs failed: %s" (with-current-buffer buffer (buffer-string))))))))
-      (when (stringp passphrase)
-        (if (fboundp 'clear-string)
-            (clear-string passphrase)
-          (dotimes (index (length passphrase))
-            (aset passphrase index ?\0))))
+      (gocryptfs--clear-passphrase passphrase)
       (setq passphrase nil))))
 
 ;;;###autoload
