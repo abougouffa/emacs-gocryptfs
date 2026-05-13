@@ -1,10 +1,10 @@
 ;;; gocryptfs.el --- Mount/Unmount gocryptfs vauls -*- lexical-binding: t; -*-
 ;;
-;; Copyright (C) 2025 Abdelhak Bougouffa
+;; Copyright (C) 2025-2026 Abdelhak Bougouffa
 ;;
 ;; Author: Abdelhak Bougouffa (rot13 "nobhtbhssn@srqbencebwrpg.bet")
 ;; Created: July 14, 2025
-;; Modified: July 16, 2025
+;; Modified: May 13, 2026
 ;; Version: 0.0.2
 ;; Keywords: convenience files processes tools unix
 ;; Homepage: https://github.com/abougouffa/emacs-gocryptfs
@@ -54,19 +54,15 @@
                   (:config-file (choice file (const :tag "Default" nil)))
                   (:gpg-passphrase-file (choice file (const :tag "Always ask" nil)))))))
 
-(defvar gocryptfs-buffer-name " *emacs-gocryptfs*")
-
-(defconst gocryptfs-extpass-command `(,shell-file-name "-c" "printf %s \"$GOCRYPTFS_PASS\"")
-  "Command used with gocryptfs -extpass.
-This command must print the passphrase to stdout without extra text.
-The passphrase is provided via the GOCRYPTFS_PASS environment variable.")
+(defvar gocryptfs-proc-name "emacs-gocryptfs")
+(defvar gocryptfs-buffer-name (format " *%s*" gocryptfs-proc-name))
 
 (defun gocryptfs--vault-cipher-dir (vault) (expand-file-name (plist-get vault :cipher-dir)))
 (defun gocryptfs--vault-plain-dir (vault) (expand-file-name (plist-get vault :plain-dir)))
 (defun gocryptfs--vault-config-file (vault) (when-let* ((file (plist-get vault :config-file))) (expand-file-name file)))
 (defun gocryptfs--vault-gpg-passphrase-file (vault)
   (when-let* ((file (or (plist-get vault :gpg-passphrase-file)
-                        (expand-file-name "passphrase-file.gpg" (gocryptfs--vault-cipher-dir vault))))
+                        (expand-file-name "gocryptfs.passphrase.gpg" (gocryptfs--vault-cipher-dir vault))))
               ((file-exists-p file)))
     (expand-file-name file)))
 
@@ -103,19 +99,19 @@ ask for the password."
            (selection (completing-read "Select gocryptfs vault: " choices nil t)))
       (cdr (assoc selection choices)))))
 
-(defun gocryptfs--call-gocryptfs (vault)
+(defun gocryptfs--mount-vault (vault)
   (let* ((cipher-dir (gocryptfs--vault-cipher-dir vault))
          (plain-dir (gocryptfs--vault-plain-dir vault))
          (config-file (gocryptfs--vault-config-file vault))
          (passphrase (gocryptfs-get-passphrase vault))
-         (args (append (when config-file (list "-config" config-file))
-                       (mapcar (apply-partially #'concat "-extpass=") gocryptfs-extpass-command)
-                       (list cipher-dir plain-dir)))
-         (buffer (get-buffer-create gocryptfs-buffer-name))
-         (process-environment (cons (concat "GOCRYPTFS_PASS=" passphrase) process-environment)))
+         (command (append (list gocryptfs-command cipher-dir plain-dir) (when config-file (list "-config" config-file))))
+         (buffer (get-buffer-create gocryptfs-buffer-name)))
     (with-current-buffer buffer (erase-buffer))
-    (let ((exit-code (apply #'call-process gocryptfs-command nil buffer nil args)))
-      (unless (equal 0 exit-code)
+    (let ((proc (make-process :name gocryptfs-proc-name :buffer buffer :stderr buffer :noquery t :command command)))
+      (process-send-string proc (concat passphrase "\n"))
+      (process-send-eof proc)
+      (while (process-live-p proc) (sleep-for 0.1))
+      (unless (equal 0 (process-exit-status proc))
         (error "gocryptfs failed: %s" (with-current-buffer buffer (buffer-string)))))))
 
 ;;;###autoload
@@ -141,7 +137,7 @@ ask for the password."
       (user-error "Plain directory %S doesn't exist" plain-dir))
     (when (gocryptfs-cipher-mounted-p vault)
       (user-error "Vault already mounted: %s" (gocryptfs--vault-name vault)))
-    (gocryptfs--call-gocryptfs vault)
+    (gocryptfs--mount-vault vault)
     (message "Mounted: %s" (gocryptfs--vault-name vault))))
 
 ;;;###autoload
