@@ -108,10 +108,11 @@ ask for the password."
          (buffer (get-buffer-create gocryptfs-buffer-name)))
     (with-current-buffer buffer (erase-buffer))
     (with-temp-buffer
-      (insert passphrase "\n")
-      (let ((exit-code (apply #'call-process-region (point-min) (point-max) gocryptfs-command nil buffer nil args)))
-        (unless (equal 0 exit-code)
-          (error "gocryptfs failed: %s" (with-current-buffer buffer (buffer-string))))))))
+      (let ((coding-system-for-write 'utf-8-unix))
+        (insert passphrase "\n")
+        (let ((exit-code (apply #'call-process-region (point-min) (point-max) gocryptfs-command nil buffer nil args)))
+          (unless (equal 0 exit-code)
+            (error "gocryptfs failed: %s" (with-current-buffer buffer (buffer-string)))))))))
 
 ;;;###autoload
 (defun gocryptfs-toggle-mount ()
