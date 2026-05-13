@@ -70,8 +70,8 @@
   (when (stringp passphrase)
     (if (fboundp 'clear-string)
         (clear-string passphrase)
-      (dotimes (index (length passphrase))
-        (aset passphrase index ?\0)))))
+      (dotimes (char-index (length passphrase))
+        (aset passphrase char-index ?\0)))))
 
 (defun gocryptfs-get-passphrase (vault)
   "Return passphrase for VAULT from the GPG encrypted password file.
