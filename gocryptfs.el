@@ -117,9 +117,8 @@ ask for the password."
                   (error "gocryptfs failed: %s" (with-current-buffer buffer (buffer-string))))))))
       (if (fboundp 'clear-string)
           (clear-string passphrase)
-        (when (stringp passphrase)
-          (dotimes (index (length passphrase))
-            (aset passphrase index 0))))
+        (dotimes (index (length passphrase))
+          (aset passphrase index 0)))
       (setq passphrase nil))))
 
 ;;;###autoload
