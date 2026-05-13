@@ -56,11 +56,6 @@
 
 (defvar gocryptfs-buffer-name " *emacs-gocryptfs*")
 
-(defconst gocryptfs-extpass-command `(,shell-file-name "-c" "printf %s \"$GOCRYPTFS_PASS\"")
-  "Command used with gocryptfs -extpass.
-This command must print the passphrase to stdout without extra text.
-The passphrase is provided via the GOCRYPTFS_PASS environment variable.")
-
 (defun gocryptfs--vault-cipher-dir (vault) (expand-file-name (plist-get vault :cipher-dir)))
 (defun gocryptfs--vault-plain-dir (vault) (expand-file-name (plist-get vault :plain-dir)))
 (defun gocryptfs--vault-config-file (vault) (when-let* ((file (plist-get vault :config-file))) (expand-file-name file)))
@@ -109,14 +104,14 @@ ask for the password."
          (config-file (gocryptfs--vault-config-file vault))
          (passphrase (gocryptfs-get-passphrase vault))
          (args (append (when config-file (list "-config" config-file))
-                       (mapcar (apply-partially #'concat "-extpass=") gocryptfs-extpass-command)
-                       (list cipher-dir plain-dir)))
-         (buffer (get-buffer-create gocryptfs-buffer-name))
-         (process-environment (cons (concat "GOCRYPTFS_PASS=" passphrase) process-environment)))
+                       (list "-stdin" cipher-dir plain-dir)))
+         (buffer (get-buffer-create gocryptfs-buffer-name)))
     (with-current-buffer buffer (erase-buffer))
-    (let ((exit-code (apply #'call-process gocryptfs-command nil buffer nil args)))
-      (unless (equal 0 exit-code)
-        (error "gocryptfs failed: %s" (with-current-buffer buffer (buffer-string)))))))
+    (with-temp-buffer
+      (insert passphrase "\n")
+      (let ((exit-code (apply #'call-process-region (point-min) (point-max) gocryptfs-command nil buffer nil args)))
+        (unless (equal 0 exit-code)
+          (error "gocryptfs failed: %s" (with-current-buffer buffer (buffer-string))))))))
 
 ;;;###autoload
 (defun gocryptfs-toggle-mount ()
