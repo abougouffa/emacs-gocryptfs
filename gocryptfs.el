@@ -115,10 +115,11 @@ ask for the password."
               (let ((exit-code (apply #'call-process-region (point-min) (point-max) gocryptfs-command nil buffer nil args)))
                 (unless (equal 0 exit-code)
                   (error "gocryptfs failed: %s" (with-current-buffer buffer (buffer-string))))))))
-      (if (fboundp 'clear-string)
-          (clear-string passphrase)
-        (dotimes (index (length passphrase))
-          (aset passphrase index ?\0)))
+      (when (stringp passphrase)
+        (if (fboundp 'clear-string)
+            (clear-string passphrase)
+          (dotimes (index (length passphrase))
+            (aset passphrase index ?\0))))
       (setq passphrase nil))))
 
 ;;;###autoload
