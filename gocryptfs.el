@@ -118,7 +118,7 @@ ask for the password."
       (if (fboundp 'clear-string)
           (clear-string passphrase)
         (dotimes (index (length passphrase))
-          (aset passphrase index 0)))
+          (aset passphrase index ?\0)))
       (setq passphrase nil))))
 
 ;;;###autoload
