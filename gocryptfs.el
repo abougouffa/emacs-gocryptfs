@@ -107,12 +107,16 @@ ask for the password."
                        (list "-stdin" cipher-dir plain-dir)))
          (buffer (get-buffer-create gocryptfs-buffer-name)))
     (with-current-buffer buffer (erase-buffer))
-    (with-temp-buffer
-      (let ((coding-system-for-write 'utf-8-unix))
-        (insert passphrase "\n")
-        (let ((exit-code (apply #'call-process-region (point-min) (point-max) gocryptfs-command nil buffer nil args)))
-          (unless (equal 0 exit-code)
-            (error "gocryptfs failed: %s" (with-current-buffer buffer (buffer-string)))))))))
+    (unwind-protect
+        (with-temp-buffer
+          (let ((coding-system-for-write 'utf-8-unix))
+            (insert passphrase "\n")
+            (let ((exit-code (apply #'call-process-region (point-min) (point-max) gocryptfs-command nil buffer nil args)))
+              (unless (equal 0 exit-code)
+                (error "gocryptfs failed: %s" (with-current-buffer buffer (buffer-string)))))))
+      (when (fboundp 'clear-string)
+        (clear-string passphrase))
+      (setq passphrase nil))))
 
 ;;;###autoload
 (defun gocryptfs-toggle-mount ()
