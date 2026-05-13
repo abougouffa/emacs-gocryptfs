@@ -122,6 +122,7 @@ ask for the password."
             (let ((coding-system-for-write 'utf-8-unix))
               (insert passphrase "\n")
               (let ((exit-code (apply #'call-process-region (point-min) (point-max) gocryptfs-command nil buffer nil args)))
+                (erase-buffer)
                 (unless (equal 0 exit-code)
                   (error "gocryptfs failed: %s" (with-current-buffer buffer (buffer-string))))))))
       (gocryptfs--clear-passphrase passphrase))))
