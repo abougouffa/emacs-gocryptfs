@@ -4,7 +4,7 @@
 ;;
 ;; Author: Abdelhak Bougouffa (rot13 "nobhtbhssn@srqbencebwrpg.bet")
 ;; Created: July 14, 2025
-;; Modified: May 13, 2026
+;; Modified: May 14, 2026
 ;; Version: 0.0.2
 ;; Keywords: convenience files processes tools unix
 ;; Homepage: https://github.com/abougouffa/emacs-gocryptfs
@@ -99,21 +99,6 @@ ask for the password."
            (selection (completing-read "Select gocryptfs vault: " choices nil t)))
       (cdr (assoc selection choices)))))
 
-(defun gocryptfs--mount-vault (vault)
-  (let* ((cipher-dir (gocryptfs--vault-cipher-dir vault))
-         (plain-dir (gocryptfs--vault-plain-dir vault))
-         (config-file (gocryptfs--vault-config-file vault))
-         (passphrase (gocryptfs-get-passphrase vault))
-         (command (append (list gocryptfs-command cipher-dir plain-dir) (when config-file (list "-config" config-file))))
-         (buffer (get-buffer-create gocryptfs-buffer-name)))
-    (with-current-buffer buffer (erase-buffer))
-    (let ((proc (make-process :name gocryptfs-proc-name :buffer buffer :stderr buffer :noquery t :command command)))
-      (process-send-string proc (concat passphrase "\n"))
-      (process-send-eof proc)
-      (while (process-live-p proc) (sleep-for 0.1))
-      (unless (equal 0 (process-exit-status proc))
-        (error "gocryptfs failed: %s" (with-current-buffer buffer (buffer-string)))))))
-
 ;;;###autoload
 (defun gocryptfs-toggle-mount ()
   "Mount/Unmount gocryptfs' cipher directory."
@@ -127,18 +112,28 @@ ask for the password."
 (defun gocryptfs-mount (vault)
   "Mount gocryptfs VAULT."
   (interactive (list (gocryptfs--read-vault)))
-  (unless (gocryptfs-available-p)
-    (user-error "gocryptfs or fusermount not available"))
-  (let ((cipher-dir (gocryptfs--vault-cipher-dir vault))
-        (plain-dir (gocryptfs--vault-plain-dir vault)))
+  (let* ((cipher-dir (gocryptfs--vault-cipher-dir vault))
+         (plain-dir (gocryptfs--vault-plain-dir vault))
+         (config-file (gocryptfs--vault-config-file vault))
+         (passphrase (gocryptfs-get-passphrase vault))
+         (command (append (list gocryptfs-command cipher-dir plain-dir) (when config-file (list "-config" config-file))))
+         (buffer (get-buffer-create gocryptfs-buffer-name)))
+    (unless (gocryptfs-available-p)
+      (user-error "gocryptfs or fusermount not available"))
     (unless (file-directory-p cipher-dir)
       (user-error "Cipher directory %S doesn't exist" cipher-dir))
     (unless (file-directory-p plain-dir)
       (user-error "Plain directory %S doesn't exist" plain-dir))
     (when (gocryptfs-cipher-mounted-p vault)
       (user-error "Vault already mounted: %s" (gocryptfs--vault-name vault)))
-    (gocryptfs--mount-vault vault)
-    (message "Mounted: %s" (gocryptfs--vault-name vault))))
+    (with-current-buffer buffer (erase-buffer))
+    (let ((proc (make-process :name gocryptfs-proc-name :buffer buffer :stderr buffer :noquery t :command command)))
+      (process-send-string proc (concat passphrase "\n"))
+      (process-send-eof proc)
+      (while (process-live-p proc) (sleep-for 0.1))
+      (unless (equal 0 (process-exit-status proc))
+        (user-error "gocryptfs failed: %s" (with-current-buffer buffer (buffer-string))))))
+  (message "Mounted: %s" (gocryptfs--vault-name vault)))
 
 ;;;###autoload
 (defun gocryptfs-umount (vault)
